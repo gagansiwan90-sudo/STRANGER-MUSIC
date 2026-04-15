@@ -1,27 +1,34 @@
-# Add to your main.py or app.py (at the end)
-import uvicorn
+# ===== YOUR EXISTING BOT CODE (same रखो) =====
+
+# ===== PORT 8000 के लिए यह add करो =====
 from fastapi import FastAPI
+import uvicorn
 import threading
 import os
 
 app = FastAPI()
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "bot": "AdamMusic_Bot"}
-
 @app.get("/")
-async def root():
-    return {"message": "AdamMusic_Bot is running! 🎵"}
+def root():
+    return {"message": "AdamMusic_Bot Live! 🎵", "port": 8000}
 
-def run_web_server():
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+@app.get("/health")
+def health():
+    return {"status": "healthy", "bot": "running"}
 
-# Start web server in background thread
+def http_server():
+    port = 8000  # Fixed port 8000
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+
+# Bot start होने के बाद HTTP server start
 if __name__ == "__main__":
-    # Your existing bot code here...
+    # Your bot code runs first...
     
-    # Start HTTP server in background
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
-    web_thread.start()u
+    # फिर background में HTTP server
+    server_thread = threading.Thread(target=http_server, daemon=True)
+    server_thread.start()
+    
+    # Bot को running रखो
+    import time
+    while True:
+        time.sleep(1)
