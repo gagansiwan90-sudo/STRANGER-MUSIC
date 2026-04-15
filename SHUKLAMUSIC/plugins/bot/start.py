@@ -1,179 +1,146 @@
-# -----------------------------------------------
-# 🔸 StrangerMusic Project
-# 🔹 Developed & Maintained by: Shashank Shukla (https://github.com/itzshukla)
-# 📅 Copyright © 2022 – All Rights Reserved
-#
-# 📖 License:
-# This source code is open for educational and non-commercial use ONLY.
-# You are required to retain this credit in all copies or substantial portions of this file.
-# Commercial use, redistribution, or removal of this notice is strictly prohibited
-# without prior written permission from the author.
-#
-# ❤️ Made with dedication and love by ItzShukla
-# -----------------------------------------------
-import asyncio
-import random
-import time
-from pyrogram import filters
-from pyrogram.enums import ChatType
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from py_yt import VideosSearch
-import config
-from SHUKLAMUSIC import app
-from SHUKLAMUSIC.misc import _boot_
-from SHUKLAMUSIC.plugins.sudo.sudoers import sudoers_list
-from SHUKLAMUSIC.utils import bot_sys_stats
-from SHUKLAMUSIC.utils.database import (
-    add_served_chat,
-    add_served_user,
-    blacklisted_chats,
-    get_lang,
-    get_served_chats,
-    get_served_users,
-    is_banned_user,
-    is_on_off,
-)
-from SHUKLAMUSIC.utils.decorators.language import LanguageStart
-from SHUKLAMUSIC.utils.formatters import get_readable_time
-from SHUKLAMUSIC.utils.inline import help_pannel, private_panel, start_panel
-from strings import get_string
-from config import BANNED_USERS, SHASHANK_IMG
+from pyrogram import enums, errors, filters, types
 
-EFFECT_IDS = [
-    5046509860389126442,
-    5107584321108051014,
-    5104841245755180586,
-    5159385139981059251,
-]
+from Elevenyts import app, config, db, lang
+from Elevenyts.helpers import buttons, utils
 
-@app.on_message(filters.command(["start"]) & filters.private & ~BANNED_USERS)
-@LanguageStart
-async def start_pm(client, message: Message, _):
-    await add_served_user(message.from_user.id)
 
-    if len(message.text.split()) > 1:
-        name = message.text.split(None, 1)[1]
-
-        if name.startswith("help"):
-            keyboard = help_pannel(_)
-            await message.reply_photo(
-                random.choice(SHASHANK_IMG),
-                caption=_['help_1'].format(config.SUPPORT_CHAT),
-                reply_markup=keyboard,
-                message_effect_id=random.choice(EFFECT_IDS),
-            )
-        elif name.startswith("sud"):
-            await sudoers_list(client=client, message=message, _=_)
-            if await is_on_off(2):
-                await app.send_message(
-                    chat_id=config.LOGGER_ID,
-                    text=f"❖ {message.from_user.mention} ᴊᴜsᴛ sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ ᴛᴏ ᴄʜᴇᴄᴋ <b>sᴜᴅᴏʟɪsᴛ</b>.\n\n<b>๏ ᴜsᴇʀ ɪᴅ :</b> <code>{message.from_user.id}</code>\n<b>๏ ᴜsᴇʀɴᴀᴍᴇ :</b> @{message.from_user.username}",
-                )
-        elif name.startswith("inf"):
-            query = name.replace("info_", "", 1)
-            results = VideosSearch(query, limit=1)
-
-            for result in (await results.next())["result"]:
-                title = result["title"]
-                duration = result["duration"]
-                views = result["viewCount"]["short"]
-                thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-                channellink = result["channel"]["link"]
-                channel = result["channel"]["name"]
-                link = result["link"]
-                published = result["publishedTime"]
-
-            searched_text = _["start_6"].format(title, duration, views, published, channellink, channel, app.mention)
-            key = InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton(text=_["S_B_8"], url=link),
-                    InlineKeyboardButton(text=_["S_B_9"], url=config.SUPPORT_CHAT),
-                ],
-            ])
-            await app.send_photo(
-                chat_id=message.chat.id,
-                photo=thumbnail,
-                caption=searched_text,
-                reply_markup=key,
-                message_effect_id=random.choice(EFFECT_IDS),
-            )
-            if await is_on_off(2):
-                await app.send_message(
-                    chat_id=config.LOGGER_ID,
-                    text=f"❖ {message.from_user.mention} ᴊᴜsᴛ sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ ᴛᴏ ᴄʜᴇᴄᴋ <b>ᴛʀᴀᴄᴋ ɪɴғᴏʀᴍᴀᴛɪᴏɴ</b>.\n\n<b>๏ ᴜsᴇʀ ɪᴅ :</b> <code>{message.from_user.id}</code>\n<b>๏ ᴜsᴇʀɴᴀᴍᴇ :</b> @{message.from_user.username}",
-                )
-    else:
-        out = private_panel(_)
-        served_chats = len(await get_served_chats())
-        served_users = len(await get_served_users())
-        UP, CPU, RAM, DISK = await bot_sys_stats()
-        await message.reply_photo(
-            random.choice(SHASHANK_IMG),
-            caption=_["start_2"].format(message.from_user.mention, app.mention, UP, DISK, CPU, RAM, served_users, served_chats),
-            reply_markup=InlineKeyboardMarkup(out),
-            message_effect_id=random.choice(EFFECT_IDS),
+@app.on_message(filters.command(["help"]) & filters.private & ~app.bl_users)
+@lang.language()
+async def _help(_, m: types.Message):
+    """Handle /help command in private chats - shows help menu with image."""
+    # Auto-delete command message
+    try:
+        await m.delete()
+    except Exception:
+        pass
+    
+    try:
+        await m.reply_photo(
+            photo=config.START_IMG,  # Use same image as start command
+            caption=m.lang["help_menu"],
+            reply_markup=buttons.help_markup(m.lang),
+            quote=True,
         )
-        if await is_on_off(2):
-            await app.send_message(
-                chat_id=config.LOGGER_ID,
-                text=f"❖ {message.from_user.mention} ᴊᴜsᴛ sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ.\n\n<b>๏ ᴜsᴇʀ ɪᴅ :</b> <code>{message.from_user.id}</code>\n<b>๏ ᴜsᴇʀɴᴀᴍᴇ :</b> @{message.from_user.username}",
-            )
+    except Exception:
+        # Fallback to text if photo fails
+        await m.reply_text(
+            text=m.lang["help_menu"],
+            reply_markup=buttons.help_markup(m.lang),
+            quote=True,
+        )
 
-@app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)
-@LanguageStart
-async def start_gp(client, message: Message, _):
-    out = start_panel(_)
-    uptime = int(time.time() - _boot_)
-    await message.reply_photo(
-        random.choice(SHASHANK_IMG),
-        caption=_["start_1"].format(app.mention, get_readable_time(uptime)),
-        reply_markup=InlineKeyboardMarkup(out),
-        message_effect_id=random.choice(EFFECT_IDS),
-    )
-    return await add_served_chat(message.chat.id)
 
-@app.on_message(filters.new_chat_members, group=-1)
-async def welcome(client, message: Message):
-    for member in message.new_chat_members:
+@app.on_message(filters.command(["start"]))
+@lang.language()
+async def start(_, message: types.Message):
+    """
+    Handle /start command - welcome message for users.
+
+    - In private chat: Shows welcome message with inline buttons
+    - In group chat: Shows short welcome message
+    - Adds new users to database
+    - Sends log to logger group for new users
+    """
+    # Auto-delete command message in group chats
+    if message.chat.type != enums.ChatType.PRIVATE:
         try:
-            language = await get_lang(message.chat.id)
-            _ = get_string(language)
+            await message.delete()
+        except Exception:
+            pass
+    
+    # Skip if message from channel or anonymous admin
+    if not message.from_user:
+        return
 
-            if await is_banned_user(member.id):
-                try:
-                    await message.chat.ban_member(member.id)
-                except:
-                    pass
+    # Check if user is blacklisted
+    if message.from_user.id in app.bl_users and message.from_user.id not in db.notified:
+        return await message.reply_text(message.lang["bl_user_notify"])
 
-            if member.id == app.id:
-                if message.chat.type != ChatType.SUPERGROUP:
-                    await message.reply_text(_["start_4"])
-                    return await app.leave_chat(message.chat.id)
+    # If /start help, show help menu
+    if len(message.command) > 1 and message.command[1] == "help":
+        return await _help(_, message)
 
-                if message.chat.id in await blacklisted_chats():
-                    await message.reply_text(
-                        _["start_5"].format(
-                            app.mention,
-                            f"https://t.me/{app.username}?start=sudolist",
-                            config.SUPPORT_CHAT,
-                        ),
-                        disable_web_page_preview=True,
-                    )
-                    return await app.leave_chat(message.chat.id)
+    # Determine if chat is private or group
+    private = message.chat.type == enums.ChatType.PRIVATE
 
-                out = start_panel(_)
-                await message.reply_photo(
-                    random.choice(SHASHANK_IMG),
-                    caption=_["start_3"].format(
-                        message.from_user.mention,
-                        app.mention,
-                        message.chat.title,
-                        app.mention,
-                    ),
-                    reply_markup=InlineKeyboardMarkup(out),
-                    message_effect_id=random.choice(EFFECT_IDS),
-                )
-                await add_served_chat(message.chat.id)
-                await message.stop_propagation()
-        except Exception as ex:
-            print(ex)
+    # Choose appropriate welcome message
+    _text = (
+        message.lang["start_pm"].format(message.from_user.first_name, app.name)
+        if private
+        else message.lang["start_gp"].format(app.name)
+    )
+
+    key = buttons.start_key(message.lang, private)
+    try:
+        await message.reply_photo(
+            photo=config.START_IMG,
+            caption=_text,
+            reply_markup=key,
+            quote=not private,
+        )
+    except errors.ChatSendPhotosForbidden:
+        # If photos are not allowed, send text only
+        await message.reply_text(
+            text=_text,
+            reply_markup=key,
+            quote=not private,
+        )
+
+    # For private chats, add user to database if new
+    if private:
+        if await db.is_user(message.from_user.id):
+            return  # User already exists, no need to add
+        # Log new user to logger group
+        await utils.send_log(message)
+        # Add user to database
+        return await db.add_user(message.from_user.id)
+
+
+@app.on_message(filters.command(["playmode", "settings"]) & filters.group & ~app.bl_users)
+@lang.language()
+async def settings(_, message: types.Message):
+    """
+    Handle /playmode or /settings command - show group settings.
+
+    Displays:
+    - Play mode (everyone or admin only)
+    - Current language
+    - Options to change settings
+    """
+    # Auto-delete command message
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    
+    admin_only = await db.get_play_mode(message.chat.id)  # Get play mode setting
+    _language = "en"
+    await message.reply_text(
+        text=message.lang["start_settings"].format(message.chat.title),
+        reply_markup=buttons.settings_markup(
+            message.lang, admin_only, _language, message.chat.id
+        ),
+        quote=True,
+    )
+
+
+@app.on_message(filters.new_chat_members, group=7)
+@lang.language()
+async def _new_member(_, message: types.Message):
+    """
+    Handle new member events - detect when bot is added to groups.
+
+    - Leaves non-supergroup chats
+    - Adds new groups to database
+    """
+    # Only work in supergroups (not basic groups)
+    if message.chat.type != enums.ChatType.SUPERGROUP:
+        return await message.chat.leave()
+
+    # Check each new member
+    for member in message.new_chat_members:
+        if member.id == app.id:  # Bot itself was added
+            if await db.is_chat(message.chat.id):
+                return  # Chat already in database
+            # Add chat to database (log is sent from new_chat.py with photo)
+            await db.add_chat(message.chat.id)
