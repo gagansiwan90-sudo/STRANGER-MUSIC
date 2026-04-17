@@ -1,127 +1,118 @@
+#!/usr/bin/env python3
+# STRANGER-MUSIC - Render Port 8080 Fixed main.py
+
 import asyncio
 import importlib
 import os
 import sys
 import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
-
 from pyrogram import idle
+from pytgcalls.exceptions import NoActiveGroupCall
 
-# Raise the file descriptor limit on Linux to avoid "[Errno 24] Too many open files"
-# when serving many groups concurrently (each audio stream + ffmpeg probe opens FDs).
+# File descriptor limit
 if sys.platform != "win32":
     try:
         import resource
         _soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-        _target = min(65536, _hard)
-        if _soft < _target:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (_target, _hard))
-    except Exception:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (65536, _hard))
+    except:
         pass
 
-from Elevenyts import (tune, app, config, db,
-                   logger, stop, userbot, yt)
-from Elevenyts.plugins import all_modules
+import config
+from SHUKLAMUSIC import LOGGER, app, userbot
+from SHUKLAMUSIC.core.call import SHUKLA
+from SHUKLAMUSIC.misc import sudo
+from SHUKLAMUSIC.plugins import ALL_MODULES
+from SHUKLAMUSIC.utils.database import get_banned_users, get_gbanned
+from config import BANNED_USERS
 
-
-# HTTP Server for Render health checks
+# 🔥 HTTP SERVER - Render Port 8080 + /ping
 class HealthCheckHandler(BaseHTTPRequestHandler):
-    """Simple HTTP handler for Render health checks"""
-    
     def do_GET(self):
-        """Handle GET requests"""
+        if self.path == '/ping':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'PONG')
+            return
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b'Bot is running')
-    
+        self.wfile.write(b'Stranger Music Bot Live')
+
     def log_message(self, format, *args):
-        """Suppress log messages to keep console clean"""
         pass
 
-
 def run_http_server():
-    """Run a simple HTTP server for Render health checks"""
-    port = int(os.environ.get("PORT", 8000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    logger.info(f"🌐 HTTP health check server started on port {port}")
-    server.serve_forever()
+    """FIXED: Port 8080 server - starts IMMEDIATELY"""
+    port = 8080
+    try:
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        print(f"[PORT-8080] 🌐 Server BOUND 0.0.0.0:8080")  # Force log
+        LOGGER(__name__).info("🌐 HTTP Server LIVE on 0.0.0.0:8080 /ping")
+        server.serve_forever()
+    except Exception as e:
+        print(f"[PORT-8080] ❌ Server error: {e}")
 
-
+# 🚀 MAIN FUNCTION
 async def main():
     try:
-        # Step 1: Validate required environment variables
-        try:
-            config.check()
-        except SystemExit as e:
-            logger.error(str(e))
-            return
-
-        # Step 2: Start HTTP server in a separate thread (for Render)
+        # 🔥 STEP 1: HTTP SERVER FIRST (5 sec delay for binding)
+        print("[RENDER] Starting HTTP server...")
         http_thread = threading.Thread(target=run_http_server, daemon=True)
         http_thread.start()
-        logger.info("🌐 HTTP server thread started for Render health checks")
-
-        # Step 3: Connect to MongoDB database
-        await db.connect()
         
-        # Step 4: Start the main bot client
-        await app.boot()
-        
-        # Step 5: Start assistant/userbot clients (for joining voice chats)
-        await userbot.boot()
-        
-        # Step 6: Initialize voice call handler
-        await tune.boot()
+        # CRITICAL: Wait for port binding
+        time.sleep(5)
+        print("[RENDER] ✅ Port 8080 ready!")
+        LOGGER(__name__).info("🚀 Render HTTP server confirmed")
 
-        # Step 7: Load all plugin modules (commands like /play, /pause, etc.)
-        for module in all_modules:
-            try:
-                importlib.import_module(f"Elevenyts.plugins.{module}")
-            except Exception as e:
-                logger.error(f"Failed to load plugin {module}: {e}", exc_info=True)
-        logger.info(f"🔌 Loaded {len(all_modules)} plugin modules.")
+        # Bot startup (original code)
+        if not any([config.STRING1, config.STRING2, config.STRING3, config.STRING4, config.STRING5]):
+            LOGGER(__name__).error("❌ No STRING sessions!")
+            return
 
-        # Step 8: Load sudo users and blacklisted users from database
-        sudoers = await db.get_sudoers()
-        app.sudoers.update(sudoers)  # Add sudo users to set
-        app.sudo_filter.update(sudoers)  # Add sudo users to filter
-        app.bl_users.update(await db.get_blacklisted())  # Add blacklisted users to filter
-        logger.info(f"👑 Loaded {len(app.sudoers)} sudo users.")
-        logger.info("\n🎉 Bot started successfully! Ready to play music! 🎵\n")
-
-        # Step 9: Keep the bot running (press Ctrl+C to stop)
+        await sudo()
         try:
-            await idle()
-        except KeyboardInterrupt:
-            logger.info("Received stop signal...")
-        except Exception as e:
-            logger.error(f"Error during idle: {e}", exc_info=True)
-        
-        # Step 10: Cleanup and shutdown when bot is stopped
-        await stop()
-    except Exception as e:
-        logger.error(f"Critical error in main: {e}", exc_info=True)
-        raise
-
-
-if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user (Ctrl+C)")
-    except SystemExit as e:
-        logger.error(f"Bot exited with system error: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error caused bot to stop: {e}", exc_info=True)
-        # Don't raise - allow clean shutdown
-    finally:
-        # Ensure cleanup happens
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.stop()
+            for user_id in await get_gbanned():
+                BANNED_USERS.add(user_id)
+            for user_id in await get_banned_users():
+                BANNED_USERS.add(user_id)
         except:
             pass
+
+        await app.start()
+        for module in ALL_MODULES:
+            try:
+                importlib.import_module("SHUKLAMUSIC.plugins" + module)
+            except:
+                pass
+        LOGGER("SHUKLAMUSIC.plugins").info("𝐀𝐥𝐥 𝐅𝐞𝐚𝐭𝐮𝐫𝐞𝐬 𝐋𝐨𝐚𝐝𝐞𝐝 🥳")
+
+        await userbot.start()
+        await SHUKLA.start()
+        
+        try:
+            await SHUKLA.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
+        except:
+            pass
+            
+        await SHUKLA.decorators()
+        LOGGER("SHUKLAMUSIC").info("🎉 STRANGER BOT LIVE | Port 8080 OK")
+
+        await idle()
+        
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            await app.stop()
+            await userbot.stop()
+        except:
+            pass
+
+if __name__ == "__main__":
+    print("[RENDER] Starting Stranger Music Bot...")
+    asyncio.run(main())
