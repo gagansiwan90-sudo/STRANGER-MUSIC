@@ -11,16 +11,17 @@
 #
 # ❤️ Made with dedication and love by ItzShukla
 # -----------------------------------------------
-import asyncio
+ import asyncio
 import importlib
 import os
 import sys
 import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
-# File descriptor limit (Linux)
+# File descriptor limit for Linux
 if sys.platform != "win32":
     try:
         import resource
@@ -39,45 +40,44 @@ from SHUKLAMUSIC.plugins import ALL_MODULES
 from SHUKLAMUSIC.utils.database import get_banned_users, get_gbanned
 from config import BANNED_USERS
 
-# HTTP Server for Render health checks
+# HTTP Server for Render (Port 8080 + /ping)
 class HealthCheckHandler(BaseHTTPRequestHandler):
-    """Simple HTTP handler for Render health checks"""
-    
     def do_GET(self):
-        """Handle GET requests"""
+        if self.path == '/ping':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'PONG')
+            return
+        
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b'Stranger Music Bot Running')
+        self.wfile.write(b'Stranger Music Bot Live ✅')
     
     def log_message(self, format, *args):
-        """Suppress log messages"""
         pass
 
 def run_http_server():
-    """Run HTTP server for Render"""
-    port = int(os.environ.get("PORT", 8000))
+    """HTTP server on FIXED port 8080 for Render"""
+    port = 8080  # FIXED - matches your Render setting
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    LOGGER(__name__).info(f"🌐 HTTP health check server started on port {port}")
+    LOGGER(__name__).info("🌐 HTTP Health server BOUND on 0.0.0.0:8080 (/ping)")
     server.serve_forever()
 
 async def main():
     try:
-        # Step 1: Check string sessions
-        if (
-            not config.STRING1
-            and not config.STRING2
-            and not config.STRING3
-            and not config.STRING4
-            and not config.STRING5
-        ):
-            LOGGER(__name__).error("String Session Not Filled")
-            return
-
-        # Step 2: Start HTTP server thread (Render)
+        # 🚀 STEP 1: HTTP SERVER FIRST (CRITICAL for Render)
+        LOGGER(__name__).info("🚀 Starting HTTP server for Render...")
         http_thread = threading.Thread(target=run_http_server, daemon=True)
         http_thread.start()
-        LOGGER(__name__).info("🌐 HTTP server thread started for Render")
+        time.sleep(3)  # Wait for port binding
+        LOGGER(__name__).info("✅ Port 8080 ready for Render health check")
+
+        # Step 2: Validate sessions
+        if not any([config.STRING1, config.STRING2, config.STRING3, config.STRING4, config.STRING5]):
+            LOGGER(__name__).error("❌ No assistant sessions found!")
+            return
 
         # Step 3: Load banned users
         try:
@@ -92,71 +92,65 @@ async def main():
 
         # Step 4: Sudo setup
         await sudo()
-        
+        LOGGER("SHUKLAMUSIC").info("👑 SUDO users loaded")
+
         # Step 5: Start main bot
         await app.start()
-        
+        LOGGER("SHUKLAMUSIC.core.bot").info("🤖 Main bot started")
+
         # Step 6: Load plugins
         for module in ALL_MODULES:
             try:
                 importlib.import_module("SHUKLAMUSIC.plugins" + module)
             except Exception as e:
-                LOGGER("SHUKLAMUSIC.plugins").error(f"Failed {module}: {e}")
-        LOGGER("SHUKLAMUSIC.plugins").info("All Features Loaded Baby🥳...")
+                LOGGER("SHUKLAMUSIC.plugins").error(f"Plugin {module} failed: {e}")
+        LOGGER("SHUKLAMUSIC.plugins").info("🔌 All Features Loaded Baby🥳...")
 
-        # Step 7: Start userbot + VC handler
+        # Step 7: Start userbot & VC
         await userbot.start()
         await SHUKLA.start()
+        LOGGER("SHUKLAMUSIC.core.userbot").info("🎤 Assistants & VC started")
 
         # Step 8: VC test
         try:
             await SHUKLA.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
+            LOGGER("SHUKLAMUSIC").info("✅ VC test passed")
         except NoActiveGroupCall:
-            LOGGER("SHUKLAMUSIC").error(
-                "Plz Start Log Group Voicechat
-Bot Continuing..."
-            )
+            LOGGER("SHUKLAMUSIC").warning("⚠️ Start VC in log group")
         except:
             pass
 
         await SHUKLA.decorators()
+
+        # 🎉 BOT READY
         LOGGER("SHUKLAMUSIC").info(
-            "🎉 Stranger Music Bot Started Successfully!
+            "🎉 STRANGER MUSIC BOT FULLY STARTED!
 "
-            "👑 Made by Mr Shivansh
+            "🌐 HTTP Health: http://your-domain:8080/ping
 "
-            "Ready to Play Music 🎵"
+            "📱 Test Commands: /start /help
+"
+            "╔═════ஜ۩۞۩ஜ════╗
+"
+            "  ☠︎︎𝗠𝗔𝗗𝗘 𝗕𝗬 𝗠𝗥 𝗦𝗛𝗜𝗩𝗔𝗡𝗦𝗛
+"
+            "╚═════ஜ۩۞۩ஜ════╝"
         )
 
-        # Step 9: Idle (keep running)
-        try:
-            await idle()
-        except KeyboardInterrupt:
-            LOGGER("SHUKLAMUSIC").info("Stop signal received")
-        except Exception as e:
-            LOGGER("SHUKLAMUSIC").error(f"Idle error: {e}")
+        # Keep running
+        await idle()
 
-        # Cleanup
-        await app.stop()
-        await userbot.stop()
-        LOGGER("SHUKLAMUSIC").info("Stop Stranger Music Bot")
-
-    except Exception as e:
-        LOGGER("SHUKLAMUSIC").error(f"Critical error: {e}")
-        raise
-
-if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
     except KeyboardInterrupt:
-        LOGGER("SHUKLAMUSIC").info("Bot stopped by user")
+        LOGGER("SHUKLAMUSIC").info("🛑 Bot stopped by user")
     except Exception as e:
-        LOGGER("SHUKLAMUSIC").error(f"Fatal: {e}")
+        LOGGER("SHUKLAMUSIC").error(f"❌ Critical error: {e}", exc_info=True)
     finally:
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.stop()
+            await app.stop()
+            await userbot.stop()
+            LOGGER("SHUKLAMUSIC").info("🔄 Cleanup complete")
         except:
             pass
+
+if __name__ == "__main__":
+    asyncio.run(main())
